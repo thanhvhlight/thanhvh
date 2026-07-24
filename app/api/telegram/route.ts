@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAllowed } from "@/lib/access";
 import { config } from "@/lib/config";
-import { monthRange, todayRange } from "@/lib/dates";
+import { monthRange, todayRange, vnDateLabel } from "@/lib/dates";
+import { errorMessage } from "@/lib/errors";
 import { formatVnd, normalizeName, parseTransaction } from "@/lib/money";
 import {
   cancelPending, changePendingBankByCode, confirmPending, createPending, findCustomer,
@@ -39,25 +40,11 @@ function depositButtons(id: string) {
 }
 
 function adsButtons(id: string) {
-  return kb([
-    [{ text: "✅ Xác nhận", callback_data: `ads_confirm:${id}` }],
-    [{ text: "✏️ Sửa", callback_data: `pending_edit:${id}` }, { text: "❌ Hủy", callback_data: `pending_cancel:${id}` }],
-  ]);
-}
-
-function depositCaption(p: any) {
-  return [
-    "<b>💳 QR NẠP TIỀN</b>",
-    `👤 <b>${p.customers.name}</b>`,
-    `💰 <b>${formatVnd(Number(p.amount))}</b>`,
-    `🏦 ${p.banks.label}`,
-    "",
-    "Kiểm tra tiền về rồi bấm <b>Đã nhận tiền</b>.",
-  ].join("\n");
+  return kb([[{ text: "✅ Xác nhận", callback_data: `ads_confirm:${id}` }, { text: "❌ Hủy", callback_data: `pending_cancel:${id}` }]]);
 }
 
 async function sendDeposit(chatId: number, pending: any) {
-  return telegram.sendPhoto(chatId, vietQrUrl(pending.banks as Bank, Number(pending.amount)), depositCaption(pending), depositButtons(pending.id));
+  return telegram.sendPhoto(chatId, vietQrUrl(pending.banks as Bank, Number(pending.amount)), undefined, depositButtons(pending.id));
 }
 
 async function customerText(customer: any) {
@@ -91,10 +78,10 @@ async function reportText(kind: "today" | "month") {
 
 function monthCloseText(summary: any) {
   const periodLabel = summary.period.period_key.split("-").reverse().join("/");
-  const lines = [`<b>📊 TỔNG KẾT THÁNG ${periodLabel}</b>`, ""];
+  const lines = [`<b>🔒 CHỐT THÁNG • ${periodLabel}</b>`, ""];
   if (!summary.customers.length) lines.push("Chưa có số dư khách trong tháng này.", "");
   for (const c of summary.customers) lines.push(`<b>${c.name}</b>: ${formatVnd(Number(c.balance))}`);
-  lines.push("", "────────────", `💰 Tổng số dư khách: <b>${formatVnd(summary.totalBalance)}</b>`);
+  lines.push("", "────────────", `Tổng dư        <b>${formatVnd(summary.totalBalance)}</b>`);
   return lines.join("\n");
 }
 
@@ -120,7 +107,7 @@ async function handleMessage(update: TelegramUpdate) {
 
   if (text === "/start" || text === "/help") {
     return telegram.sendMessage(chatId, [
-      "<b>ADS WALLET BOT v1.1</b>",
+      "<b>ADS WALLET BOT V1.2 PRO</b>",
       "",
       "Chọn nút bên dưới hoặc nhập trực tiếp.",
     ].join("\n"), mainMenu);
@@ -148,11 +135,11 @@ async function handleMessage(update: TelegramUpdate) {
   if (text === "📚 Lịch sử" || text === "/history") {
     const periods = await listClosedPeriods();
     if (!periods.length) return telegram.sendMessage(chatId, "Chưa có tháng nào đã khóa sổ.");
-    return telegram.sendMessage(chatId, "<b>📚 LỊCH SỬ THÁNG</b>", kb(periods.map((p) => [{ text: p.period_key.split("-").reverse().join("/"), callback_data: `history_period:${p.id}` }])));
+    return telegram.sendMessage(chatId, "<b>📚 LỊCH SỬ THÁNG</b>", kb(periods.map((p: any) => [{ text: p.period_key.split("-").reverse().join("/"), callback_data: `history_period:${p.id}` }])));
   }
   if (text === "🏦 Ngân hàng" || text === "/bank") {
     const banks = await listBanks();
-    return telegram.sendMessage(chatId, "<b>🏦 CHỌN NGÂN HÀNG MẶC ĐỊNH</b>", kb(banks.map((b) => [{ text: `${b.is_default ? "✅ " : ""}${b.label} • ${b.account_no}`, callback_data: `bank_default:${b.id}` }])));
+    return telegram.sendMessage(chatId, "<b>🏦 CHỌN NGÂN HÀNG MẶC ĐỊNH</b>", kb(banks.map((b: Bank) => [{ text: `${b.is_default ? "✅ " : ""}${b.label} • ${b.account_no}`, callback_data: `bank_default:${b.id}` }])));
   }
   if (text === "↩️ Hoàn tác" || text === "/undo") {
     const last = await getLastConfirmedTransaction(userId);
@@ -172,10 +159,14 @@ async function handleMessage(update: TelegramUpdate) {
     const after = Number(customer.balance) - parsed.amount - fee;
     const pending = await createPending({ customerId: customer.id, type: "ads", amount: parsed.amount, feeAmount: fee, telegramUserId: userId, telegramChatId: chatId });
     return telegram.sendMessage(chatId, [
-      "<b>📣 CHỐT CHI PHÍ ADS</b>", "", `👤 Khách: <b>${customer.name}</b>`,
-      `Facebook tiêu: <b>${formatVnd(parsed.amount)}</b>`, `Phí ${Number(customer.fee_percent)}%: <b>${formatVnd(fee)}</b>`,
-      `Tổng trừ: <b>${formatVnd(parsed.amount + fee)}</b>`, "",
-      `Số dư hiện tại: ${formatVnd(Number(customer.balance))}`, `Số dư sau giao dịch: <b>${formatVnd(after)}</b>`,
+      `<b>📉 CHỐT ADS • ${vnDateLabel()}</b>`, "",
+      `👤 <b>${customer.name}</b>`, "",
+      `Facebook      <b>${formatVnd(parsed.amount)}</b>`,
+      `Phí (${Number(customer.fee_percent)}%)       <b>${formatVnd(fee)}</b>`,
+      "───────────────",
+      `Tổng trừ      <b>${formatVnd(parsed.amount + fee)}</b>`, "",
+      `<b>Số dư</b>`,
+      `${formatVnd(Number(customer.balance))} ➜ <b>${formatVnd(after)}</b>`,
       after < 0 ? "\n⚠️ Số dư sau giao dịch sẽ âm." : "",
     ].join("\n"), adsButtons(pending.id));
   }
@@ -214,11 +205,12 @@ async function handleCallback(update: TelegramUpdate) {
     if (action === "deposit_confirm" || action === "ads_confirm") {
       const result = await confirmPending(id, userId);
       await telegram.answerCallbackQuery(q.id, "Đã lưu giao dịch");
+      const isDeposit = action === "deposit_confirm";
       const doneText = [
-        action === "deposit_confirm" ? "<b>✅ ĐÃ NHẬN TIỀN</b>" : "<b>✅ ĐÃ CHỐT CHI PHÍ ADS</b>", "",
-        `Khách: <b>${result.customer_name}</b>`, `Số dư trước: ${formatVnd(Number(result.balance_before))}`,
-        `Thay đổi: ${Number(result.total_effect) >= 0 ? "+" : "-"}${formatVnd(Math.abs(Number(result.total_effect)))}`,
-        `Số dư mới: <b>${formatVnd(Number(result.balance_after))}</b>`, "", "Dùng /undo nếu vừa xác nhận nhầm.",
+        `<b>${isDeposit ? "✅ ĐÃ NHẬN" : "✅ ĐÃ CHỐT ADS"} • ${vnDateLabel()}</b>`, "",
+        `👤 <b>${result.customer_name}</b>`,
+        `${Number(result.total_effect) >= 0 ? "➕" : "➖"} <b>${formatVnd(Math.abs(Number(result.total_effect)))}</b>`, "",
+        `💰 Số dư: <b>${formatVnd(Number(result.balance_after))}</b>`,
       ].join("\n");
       return action === "deposit_confirm"
         ? telegram.editMessageCaption(chatId, messageId, doneText)
@@ -228,13 +220,13 @@ async function handleCallback(update: TelegramUpdate) {
       const [banks, pending] = await Promise.all([listBanks(), getPending(id)]);
       if (!pending) throw new Error("Không tìm thấy giao dịch");
       await telegram.answerCallbackQuery(q.id);
-      return telegram.editMessageCaption(chatId, messageId, "<b>🏦 Chọn ngân hàng cho QR này</b>", kb(banks.map((b) => [{ text: `${b.label} • ${b.account_no}`, callback_data: `dbank:${pending.code}:${b.code}` }])));
+      return telegram.editMessageCaption(chatId, messageId, "<b>🏦 Chọn ngân hàng cho QR này</b>", kb(banks.map((b: Bank) => [{ text: `${b.label} • ${b.account_no}`, callback_data: `dbank:${pending.code}:${b.code}` }])));
     }
     if (action === "dbank") {
       if (!extra) throw new Error("Thiếu mã ngân hàng");
       const pending = await changePendingBankByCode(id, extra);
       await telegram.answerCallbackQuery(q.id, `Đã chọn ${pending.banks.label}`);
-      return telegram.editMessageMedia(chatId, messageId, vietQrUrl(pending.banks as Bank, Number(pending.amount)), depositCaption(pending), depositButtons(pending.id));
+      return telegram.editMessageMedia(chatId, messageId, vietQrUrl(pending.banks as Bank, Number(pending.amount)), undefined, depositButtons(pending.id));
     }
     if (action === "bank_default") {
       const bank = await setDefaultBank(id);
@@ -251,9 +243,9 @@ async function handleCallback(update: TelegramUpdate) {
       const label = summary.period.period_key.split("-").reverse().join("/");
       await telegram.answerCallbackQuery(q.id);
       return telegram.editMessageText(chatId, messageId, [
-        `<b>🔒 XÁC NHẬN KHÓA SỔ THÁNG ${label}</b>`, "",
+        `<b>Xác nhận chốt tháng ${label}?</b>`, "",
         `Tổng số dư sẽ lưu vào lịch sử: <b>${formatVnd(summary.totalBalance)}</b>`, "",
-        "Sau khi đồng ý:", "• Khóa dữ liệu tháng hiện tại", "• Số dư tất cả khách về 0đ", "• Mở tháng mới",
+        "Sau khi đồng ý:", "• Lưu lịch sử tháng", "• Đưa số dư tất cả khách về 0đ", "• Mở kỳ tháng mới",
       ].join("\n"), finalCloseButtons());
     }
     if (action === "month_close_execute") {
@@ -262,11 +254,11 @@ async function handleCallback(update: TelegramUpdate) {
       const oldLabel = String(result.closed_period_key).split("-").reverse().join("/");
       const newLabel = String(result.next_period_key).split("-").reverse().join("/");
       return telegram.editMessageText(chatId, messageId, [
-        `<b>✅ ĐÃ KHÓA SỔ THÁNG ${oldLabel}</b>`, "",
+        `<b>✅ ĐÃ CHỐT THÁNG ${oldLabel}</b>`, "",
         `Tổng số dư đã lưu: <b>${formatVnd(Number(result.closed_total))}</b>`,
         "Số dư tất cả khách đã về <b>0đ</b>.",
         `Đã mở kỳ tháng <b>${newLabel}</b>.`, "",
-        "Dùng /history để xem lại tháng đã khóa.",
+        "Dùng nút Lịch sử để xem lại tháng đã khóa.",
       ].join("\n"));
     }
     if (action === "history_period") {
@@ -285,7 +277,8 @@ async function handleCallback(update: TelegramUpdate) {
       return telegram.editMessageText(chatId, messageId, ["<b>✅ ĐÃ HOÀN TÁC</b>", "", `Khách: ${result.customer_name}`, `Số dư trước hoàn tác: ${formatVnd(Number(result.balance_before))}`, `Số dư sau hoàn tác: <b>${formatVnd(Number(result.balance_after))}</b>`].join("\n"));
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Lỗi không xác định";
+    const message = errorMessage(error);
+    console.error("Telegram callback error", { action, id, message, error });
     return telegram.answerCallbackQuery(q.id, message.slice(0, 180), true);
   }
 }

@@ -55,10 +55,32 @@ export async function PATCH(request: NextRequest) {
     if (body.account_no !== undefined) changes.account_no = String(body.account_no).replace(/\s+/g, "");
     if (body.account_name !== undefined) changes.account_name = String(body.account_name).trim().toUpperCase();
     if (body.is_active !== undefined) changes.is_active = Boolean(body.is_active);
+    if (body.is_default === true) {
+      const { error: resetError } = await db().from("banks").update({ is_default: false }).neq("id", id);
+      if (resetError) throw resetError;
+      changes.is_default = true;
+      changes.is_active = true;
+    }
 
     const { data, error } = await db().from("banks").update(changes).eq("id", id).select("*").single();
     if (error) throw error;
     return NextResponse.json({ ok: true, bank: data });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    assertAdminKey(request.headers.get("x-admin-key"));
+    const id = new URL(request.url).searchParams.get("id");
+    if (!id) throw new Error("Thiếu ID ngân hàng");
+    const { data: bank, error: readError } = await db().from("banks").select("is_default").eq("id", id).single();
+    if (readError) throw readError;
+    if (bank.is_default) throw new Error("Không thể xóa ngân hàng đang mặc định. Hãy chọn ngân hàng khác trước.");
+    const { error } = await db().from("banks").delete().eq("id", id);
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return errorResponse(error);
   }

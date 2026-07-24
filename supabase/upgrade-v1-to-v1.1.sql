@@ -72,31 +72,46 @@ returns table (
 )
 language plpgsql security definer set search_path = public as $$
 declare
-  p public.accounting_periods%rowtype;
+  current_period public.accounting_periods%rowtype;
   total numeric := 0;
   next_key text;
 begin
-  select * into p from public.accounting_periods where status='open' for update;
-  if not found then raise exception 'Không có tháng đang mở'; end if;
+  perform pg_advisory_xact_lock(12022026);
 
-  if exists(select 1 from public.pending_transactions where status='pending') then
-    raise exception 'Còn giao dịch đang chờ xác nhận hoặc hủy';
+  select * into current_period
+  from public.accounting_periods
+  where status = 'open'
+  order by period_key desc
+  limit 1
+  for update;
+
+  if not found then
+    raise exception 'Không có tháng đang mở';
   end if;
 
+  if exists(select 1 from public.pending_transactions where status = 'pending') then
+    raise exception 'Còn giao dịch đang chờ. Hãy xác nhận hoặc hủy trước khi chốt tháng';
+  end if;
+
+  delete from public.month_snapshots where period_id = current_period.id;
   insert into public.month_snapshots(period_id, customer_id, customer_name, closing_balance)
-  select p.id, id, name, balance from public.customers where balance <> 0
-  on conflict(period_id, customer_id) do nothing;
+  select current_period.id, id, name, balance
+  from public.customers
+  where balance <> 0;
 
-  select coalesce(sum(balance),0) into total from public.customers;
+  select coalesce(sum(balance), 0) into total from public.customers;
+
   update public.accounting_periods
-    set status='closed', total_balance=total, closed_at=now(), closed_by=p_user_id
-    where id=p.id;
+  set status = 'closed', total_balance = total, closed_at = now(), closed_by = p_user_id
+  where id = current_period.id;
 
-  update public.customers set balance=0, updated_at=now();
+  update public.customers set balance = 0, updated_at = now();
 
-  next_key := to_char((to_date(p.period_key || '-01','YYYY-MM-DD') + interval '1 month'), 'YYYY-MM');
-  insert into public.accounting_periods(period_key,status) values(next_key,'open')
-  on conflict(period_key) do update set status='open', opened_at=now(), closed_at=null, closed_by=null;
+  next_key := to_char((to_date(current_period.period_key || '-01', 'YYYY-MM-DD') + interval '1 month'), 'YYYY-MM');
+  insert into public.accounting_periods(period_key, status, total_balance, opened_at, closed_at, closed_by)
+  values(next_key, 'open', 0, now(), null, null)
+  on conflict(period_key) do update
+  set status = 'open', total_balance = 0, opened_at = now(), closed_at = null, closed_by = null;
 
-  return query select p.id,p.period_key,total,next_key;
+  return query select current_period.id, current_period.period_key, total, next_key;
 end $$;

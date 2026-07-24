@@ -1,0 +1,117 @@
+"use client";
+
+import { FormEvent, useMemo, useState } from "react";
+
+type DailyRow = { date: string; label: string; deposits: number; ads: number; fees: number; net: number; balance: number };
+type DashboardData = {
+  range: { from: string; to: string };
+  totals: { deposits: number; ads: number; fees: number; net: number; totalBalance: number; customerCount: number };
+  daily: DailyRow[];
+  customers: Array<{ id: string; name: string; deposits: number; ads: number; fees: number; balance: number; feePercent: number }>;
+  recent: Array<{ id: string; type: "deposit" | "ads"; amount: number; fee: number; totalEffect: number; createdAt: string; date: string; customer: string }>;
+  bank: { label: string; account_no: string; account_name: string } | null;
+  activePeriod: { period_key: string } | null;
+};
+
+const money = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
+const compact = new Intl.NumberFormat("vi-VN", { notation: "compact", maximumFractionDigits: 1 });
+
+function dateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+function vietnamToday() {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const value = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+function shiftDate(key: string, days: number) {
+  const [year, month, day] = key.split("-").map(Number);
+  return dateKey(new Date(year, month - 1, day + days));
+}
+function monthStart(key: string) { return `${key.slice(0, 7)}-01`; }
+function formatTime(iso: string) {
+  return new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" }).format(new Date(iso));
+}
+
+function BarChart({ rows }: { rows: DailyRow[] }) {
+  const max = Math.max(1, ...rows.flatMap((row) => [row.deposits, row.ads]));
+  return <div className="native-chart" role="img" aria-label="Biểu đồ nạp và Ads theo ngày">
+    <div className="chart-legend"><span><i className="legend-deposit"/>Nạp</span><span><i className="legend-ads"/>Ads</span></div>
+    <div className="bar-chart-scroll"><div className="bar-chart" style={{ minWidth: `${Math.max(520, rows.length * 64)}px` }}>
+      {rows.map((row) => <div className="bar-group" key={row.date} title={`${row.label}: Nạp ${money.format(row.deposits)}, Ads ${money.format(row.ads)}`}>
+        <div className="bar-values"><span>{row.deposits ? compact.format(row.deposits) : ""}</span><span>{row.ads ? compact.format(row.ads) : ""}</span></div>
+        <div className="bars"><i className="bar deposit" style={{ height: `${Math.max(row.deposits ? 4 : 0, row.deposits / max * 220)}px` }}/><i className="bar ads" style={{ height: `${Math.max(row.ads ? 4 : 0, row.ads / max * 220)}px` }}/></div>
+        <b>{row.label}</b>
+      </div>)}
+    </div></div>
+  </div>;
+}
+
+function BalanceLineChart({ rows }: { rows: DailyRow[] }) {
+  const width = Math.max(640, rows.length * 72);
+  const height = 280;
+  const padding = 34;
+  const values = rows.map((row) => row.balance);
+  const min = Math.min(0, ...values);
+  const max = Math.max(1, ...values);
+  const range = max - min || 1;
+  const point = (value: number, index: number) => ({
+    x: rows.length <= 1 ? width / 2 : padding + index * ((width - padding * 2) / (rows.length - 1)),
+    y: padding + (max - value) / range * (height - padding * 2),
+  });
+  const points = rows.map((row, index) => point(row.balance, index));
+  const path = points.map((item, index) => `${index ? "L" : "M"}${item.x},${item.y}`).join(" ");
+  return <div className="line-chart-scroll"><svg className="line-chart" viewBox={`0 0 ${width} ${height}`} style={{ minWidth: `${width}px` }} role="img" aria-label="Biểu đồ số dư theo ngày">
+    {[0, .25, .5, .75, 1].map((ratio) => <line key={ratio} x1={padding} x2={width - padding} y1={padding + ratio * (height - padding * 2)} y2={padding + ratio * (height - padding * 2)} className="grid-line" />)}
+    <path d={path} className="balance-path" />
+    {points.map((item, index) => <g key={rows[index].date}><circle cx={item.x} cy={item.y} r="5" className="balance-point"><title>{`${rows[index].label}: ${money.format(rows[index].balance)}`}</title></circle><text x={item.x} y={height - 8} textAnchor="middle" className="axis-label">{rows[index].label}</text></g>)}
+  </svg></div>;
+}
+
+export default function Dashboard() {
+  const today = vietnamToday();
+  const [adminKey, setAdminKey] = useState("");
+  const [from, setFrom] = useState(today);
+  const [to, setTo] = useState(today);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("Nhập khóa quản trị để xem dữ liệu.");
+
+  async function load(nextFrom = from, nextTo = to) {
+    if (!adminKey.trim()) return setMessage("Hãy nhập ADMIN_SETUP_KEY.");
+    setLoading(true); setMessage("Đang tải dữ liệu...");
+    try {
+      const response = await fetch(`/api/admin/dashboard?from=${encodeURIComponent(nextFrom)}&to=${encodeURIComponent(nextTo)}`, { headers: { "x-admin-key": adminKey }, cache: "no-store" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.message || "Không tải được dữ liệu");
+      setData(json); setMessage(`Đã cập nhật ${nextFrom.split("-").reverse().join("/")} – ${nextTo.split("-").reverse().join("/")}.`);
+    } catch (error) { setData(null); setMessage(error instanceof Error ? error.message : "Lỗi không xác định"); }
+    finally { setLoading(false); }
+  }
+  function chooseRange(kind: "today" | "yesterday" | "7days" | "month") {
+    let nextFrom = today, nextTo = today;
+    if (kind === "yesterday") nextFrom = nextTo = shiftDate(today, -1);
+    if (kind === "7days") nextFrom = shiftDate(today, -6);
+    if (kind === "month") nextFrom = monthStart(today);
+    setFrom(nextFrom); setTo(nextTo); void load(nextFrom, nextTo);
+  }
+  function submit(event: FormEvent) { event.preventDefault(); void load(); }
+  const chartData = useMemo(() => data?.daily || [], [data]);
+
+  return <main className="dashboard-shell">
+    <header className="dashboard-header"><div><span className="product-badge">ADS WALLET BOT V1.2 PRO</span><h1>Dashboard Nạp Ads</h1><p>Theo dõi tiền nạp, chi phí Ads, phí dịch vụ và số dư theo từng ngày Việt Nam.</p></div><div className="status-stack"><span className="status-pill">● Bot hoạt động</span><span>{data?.bank ? `${data.bank.label} • ${data.bank.account_no}` : "Chưa tải ngân hàng"}</span></div></header>
+    <section className="dashboard-control">
+      <div className="admin-key-box"><label htmlFor="admin-key">Khóa quản trị</label><div className="control-row"><input id="admin-key" type="password" value={adminKey} onChange={(event) => setAdminKey(event.target.value)} placeholder="ADMIN_SETUP_KEY"/><button type="button" onClick={() => void load()} disabled={loading}>{loading ? "Đang tải" : "Xem dashboard"}</button></div></div>
+      <div className="quick-ranges"><button type="button" onClick={() => chooseRange("today")}>Hôm nay</button><button type="button" onClick={() => chooseRange("yesterday")}>Hôm qua</button><button type="button" onClick={() => chooseRange("7days")}>7 ngày</button><button type="button" onClick={() => chooseRange("month")}>Tháng này</button></div>
+      <form className="date-range" onSubmit={submit}><label>Từ ngày<input type="date" value={from} max={to} onChange={(event) => setFrom(event.target.value)}/></label><label>Đến ngày<input type="date" value={to} min={from} onChange={(event) => setTo(event.target.value)}/></label><button type="submit" disabled={loading}>Áp dụng</button></form>
+      <p className="dashboard-message">{message}</p>
+    </section>
+    {data ? <>
+      <section className="kpi-grid"><article className="kpi-card"><span>Nạp</span><strong>{money.format(data.totals.deposits)}</strong><small>Trong khoảng đã chọn</small></article><article className="kpi-card"><span>Ads</span><strong>{money.format(data.totals.ads)}</strong><small>Facebook đã tiêu</small></article><article className="kpi-card"><span>Phí</span><strong>{money.format(data.totals.fees)}</strong><small>Phí dịch vụ</small></article><article className="kpi-card accent"><span>Số dư hiện tại</span><strong>{money.format(data.totals.totalBalance)}</strong><small>{data.totals.customerCount} khách hàng</small></article></section>
+      <section className="chart-grid"><article className="chart-card chart-wide"><div className="section-heading"><div><span>Biểu đồ cột</span><h2>Nạp và Ads theo ngày</h2></div><small>Chọn từng ngày bằng bộ lọc phía trên</small></div><BarChart rows={chartData}/></article><article className="chart-card chart-wide"><div className="section-heading"><div><span>Biểu đồ đường</span><h2>Số dư lũy kế trong tháng</h2></div><small>Ngày mới lúc 00:00 giờ Việt Nam</small></div><BalanceLineChart rows={chartData}/></article></section>
+      <section className="data-grid"><article className="table-card"><div className="section-heading"><div><span>Bảng khách hàng</span><h2>Nạp, Ads và số dư</h2></div></div><div className="table-wrap"><table><thead><tr><th>Khách</th><th>Nạp</th><th>Ads</th><th>Phí</th><th>Số dư</th></tr></thead><tbody>{data.customers.length ? data.customers.map((customer) => <tr key={customer.id}><td><strong>{customer.name}</strong><small>Phí {customer.feePercent}%</small></td><td>{money.format(customer.deposits)}</td><td>{money.format(customer.ads)}</td><td>{money.format(customer.fees)}</td><td className={customer.balance < 0 ? "negative" : "positive"}>{money.format(customer.balance)}</td></tr>) : <tr><td colSpan={5} className="empty">Chưa có dữ liệu trong khoảng đã chọn.</td></tr>}</tbody></table></div></article>
+      <article className="recent-card"><div className="section-heading"><div><span>Cập nhật mới</span><h2>Giao dịch gần nhất</h2></div></div><div className="recent-list">{data.recent.length ? data.recent.map((item) => <div key={item.id} className="recent-item"><span className={item.type === "deposit" ? "transaction-icon deposit" : "transaction-icon ads"}>{item.type === "deposit" ? "+" : "−"}</span><div><strong>{item.customer}</strong><small>{formatTime(item.createdAt)}</small></div><b className={item.type === "deposit" ? "positive" : "negative"}>{item.type === "deposit" ? "+" : "−"}{money.format(Math.abs(item.totalEffect))}</b></div>) : <p className="empty">Chưa có giao dịch.</p>}</div></article></section>
+      <footer className="dashboard-footer"><span>Kỳ đang mở: <strong>{data.activePeriod?.period_key || "Chưa có"}</strong></span><nav><a href="/banks">Quản lý ngân hàng</a><a href="/setup">Kiểm tra Telegram</a><a href="/api/health">API Health</a></nav></footer>
+    </> : <section className="dashboard-placeholder"><strong>Dashboard đang được bảo vệ</strong><p>Nhập khóa quản trị phía trên. Dữ liệu tài chính không hiển thị công khai.</p></section>}
+  </main>;
+}

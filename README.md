@@ -1,110 +1,133 @@
-# Ads Wallet Bot v1.1
+# Ads Wallet Bot V1.2 Pro
 
-Bot Telegram tạo VietQR và quản lý số dư quảng cáo theo từng khách, thao tác bằng một dòng.
+Bot Telegram tạo VietQR và quản lý tiền Nạp Ads. Website là dashboard tham khảo theo từng ngày; thao tác nghiệp vụ vẫn thực hiện nhanh trên Telegram.
 
-## Cú pháp
+## Chức năng chính
+
+### Telegram
+
+- `+10tr anh son`: tạo ảnh QR chỉ có mã QR, không tự thêm nội dung chuyển khoản.
+- `-7tr250 anh son`: tính Facebook + phí 12% và hiển thị ngày theo giờ Việt Nam.
+- Gõ tên khách: xem tổng nạp, tổng Ads, phí và số dư.
+- Menu nút cố định: Nạp tiền, Chốt Ads, Xem khách, Báo cáo ngày, Chốt tháng, Lịch sử, Ngân hàng, Hoàn tác.
+- Chống xác nhận một giao dịch hai lần ở tầng database.
+- Chốt tháng lưu số dư từng khách, đưa toàn bộ số dư về 0 và mở tháng mới.
+- Lỗi callback Telegram hiển thị đúng nội dung lỗi thay vì “Lỗi không xác định”.
+
+### Website Dashboard
+
+- Bảo vệ bằng `ADMIN_SETUP_KEY`.
+- Bộ lọc: Hôm nay, Hôm qua, 7 ngày, Tháng này hoặc chọn Từ ngày/Đến ngày.
+- Thẻ tổng quan: Nạp, Ads, Phí, Số dư hiện tại.
+- Biểu đồ cột Nạp và Ads theo từng ngày.
+- Biểu đồ đường số dư lũy kế trong tháng.
+- Bảng khách hàng: Nạp, Ads, Phí, Số dư.
+- Danh sách giao dịch gần nhất.
+- Quản lý ngân hàng: thêm, sửa, xóa, đặt mặc định.
+
+## Quy tắc thời gian
+
+- Múi giờ: `Asia/Ho_Chi_Minh`.
+- Một ngày tính từ `00:00:00` đến `23:59:59` giờ Việt Nam.
+- Qua 00:00, giao dịch mới tự thuộc ngày mới.
+- Không cần mở ngày hoặc chốt ngày.
+
+## Nâng cấp từ V1.1 Pro
+
+### 1. Upload code
+
+Giải nén ZIP và upload đè toàn bộ file lên repository GitHub hiện tại.
+
+Không xóa Supabase và không chạy lại `schema.sql`.
+
+### 2. Nâng cấp Supabase
+
+Vào Supabase → SQL Editor → New query.
+
+Mở file:
 
 ```text
-+10tr anh son       # tạo QR nhận 10.000.000đ
--7tr250 anh son     # Facebook tiêu 7.250.000đ, tự cộng phí 12%
-anh son             # xem số dư khách
-/today              # báo cáo hôm nay
-/month              # tổng kết và chốt tháng
-/history            # xem lịch sử các tháng đã khóa
-/bank               # chọn ngân hàng mặc định
-/undo               # hoàn tác giao dịch vừa xác nhận
-/id                 # lấy Telegram User ID
+supabase/upgrade-v1.1-to-v1.2.sql
 ```
 
-Tên có dấu hoặc không dấu đều nhận diện cùng một khách. QR chỉ được gửi qua URL VietQR, không lưu ảnh vào Supabase.
+Copy toàn bộ, dán vào SQL Editor và bấm **Run without RLS** đúng một lần.
 
-## Luồng tháng
+File nâng cấp:
 
-1. Trong tháng, xác nhận tiền vào và chi phí Ads như bình thường.
-2. Gửi `/month` để xem số dư từng khách và tổng số dư.
-3. Bấm `Chốt khóa sổ` rồi `Đồng ý`.
-4. Bot lưu lịch sử tháng, khóa kỳ cũ, đưa số dư tất cả khách về 0 và mở tháng kế tiếp.
-5. Dùng `/history` để xem lại tháng đã khóa. Lịch sử chỉ xem, không sửa.
+- thay hàm khóa sổ tháng bằng bản ổn định và atomic;
+- giữ nguyên toàn bộ khách hàng, ngân hàng và giao dịch cũ;
+- thêm index để dashboard tải nhanh hơn.
 
-## Cài đặt mới
+### 3. Redeploy Vercel
 
-### 1. Supabase
+Vào:
 
-Tạo project Supabase → SQL Editor → mở `supabase/schema.sql`.
-
-Sửa dòng tài khoản ngân hàng mẫu ở cuối phần v1.0:
-
-```sql
-'TPBank', 'TPB', '0123456789', 'NGUYEN VAN A'
+```text
+Vercel → Project → Deployments → Redeploy
 ```
 
-thành thông tin thật, rồi chạy toàn bộ SQL.
+Chọn **Redeploy without Build Cache**.
 
-### 2. Telegram
+Không cần sửa Environment Variables nếu domain và các khóa không đổi.
+Không cần kết nối lại webhook Telegram.
 
-Tạo bot với `@BotFather` bằng `/newbot`, lưu Bot Token.
+### 4. Kiểm tra
 
-### 3. GitHub và Vercel
+1. Mở `/api/health` và xác nhận trả `{ "ok": true }`.
+2. Mở `/` và nhập `ADMIN_SETUP_KEY` để xem dashboard.
+3. Telegram gửi `/start` để tải menu mới.
+4. Test `+10tr test v12`, xác nhận nhận tiền.
+5. Test `-1tr test v12`, xác nhận Chốt Ads.
+6. Bấm Báo cáo ngày.
+7. Hủy hoặc xử lý hết giao dịch đang chờ trước khi test Chốt tháng.
 
-Upload các file trong thư mục dự án lên root repository, để `package.json` nằm ngang hàng với `app`, `lib`, `supabase`.
+## Cài mới hoàn toàn
 
-Import repository vào Vercel:
-
-- Framework: Next.js
-- Node.js: 24.x
-- Build Command: `npm run build`
-- Output Directory: để trống
-
-### 4. Environment Variables
+1. Tạo project Supabase.
+2. Chạy toàn bộ `supabase/schema.sql` một lần.
+3. Tạo Telegram bot bằng BotFather.
+4. Deploy repository lên Vercel với Node.js 24.x.
+5. Thêm Environment Variables:
 
 ```env
 TELEGRAM_BOT_TOKEN=
-TELEGRAM_WEBHOOK_SECRET=ads_wallet_secret_2026
-ALLOWED_TELEGRAM_USER_IDS=
-ADMIN_SETUP_KEY=
-APP_URL=https://ten-du-an.vercel.app
-SUPABASE_URL=https://xxxx.supabase.co
+TELEGRAM_WEBHOOK_SECRET=
+SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
+APP_URL=https://ten-du-an.vercel.app
+ADMIN_SETUP_KEY=
 DEFAULT_FEE_PERCENT=12
 TIMEZONE=Asia/Ho_Chi_Minh
+ALLOWED_TELEGRAM_USER_IDS=
 ```
 
-Redeploy sau khi thêm biến.
+6. Redeploy.
+7. Mở `/setup`, nhập `ADMIN_SETUP_KEY`, bấm Kết nối Telegram.
+8. Gửi `/id`, sau đó điền ID vào `ALLOWED_TELEGRAM_USER_IDS` và redeploy lần cuối.
+9. Mở `/banks` để nhập tài khoản ngân hàng thật.
 
-### 5. Kết nối webhook
+## Lưu ý khi chốt tháng
 
-Mở:
+Bot không cho chốt tháng nếu còn giao dịch trạng thái `pending`. Hãy bấm xác nhận hoặc hủy các QR/chi phí đang chờ trước.
 
-```text
-https://ten-du-an.vercel.app/setup
+Chốt tháng chạy trong một database transaction. Nếu một bước lỗi, database không bị reset dở dang.
+
+## Kiểm tra dự án
+
+```bash
+npm run validate
+npm run typecheck
+npm run build
 ```
 
-Nhập `ADMIN_SETUP_KEY` → Kết nối Telegram → Kiểm tra trạng thái.
+Dự án dùng:
 
-Sau đó nhắn `/id`, lấy ID và cập nhật:
+- Next.js 16
+- React 19
+- TypeScript 5.9
+- Node.js 24
+- Supabase
+- Telegram Bot API
+- VietQR
 
-```env
-ALLOWED_TELEGRAM_USER_IDS=123456789
-```
-
-Redeploy lần cuối.
-
-## Nâng cấp từ v1.0
-
-1. Upload đè code v1.1 lên GitHub.
-2. Trong Supabase SQL Editor, chạy `supabase/upgrade-v1-to-v1.1.sql` đúng một lần.
-3. Redeploy Vercel không dùng cache.
-4. Không cần đăng ký lại webhook nếu domain và Bot Token không đổi.
-
-## Lưu ý chốt tháng
-
-Bot không cho khóa sổ nếu còn giao dịch đang chờ xác nhận hoặc hủy. Hãy xử lý hết các nút QR/Ads đang chờ trước khi chốt tháng.
-
-
-## Cập nhật menu nhanh
-
-- `/start` hiển thị bàn phím nút cố định.
-- Hỗ trợ nút `➕ Nạp tiền`, `➖ Chốt Ads`, báo cáo, lịch sử, ngân hàng và hoàn tác.
-- Hỗ trợ lệnh phụ `+naptien` và `-chotads`.
-- QR không tự điền nội dung chuyển khoản.
-- Caption QR đã được rút gọn.
+Biểu đồ website được dựng bằng SVG/CSS nội bộ, không cần thư viện biểu đồ bổ sung.

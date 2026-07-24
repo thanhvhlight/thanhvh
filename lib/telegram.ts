@@ -18,8 +18,8 @@ export const telegram = {
   sendMessage(chatId: number, text: string, replyMarkup?: unknown) {
     return call("sendMessage", { chat_id: chatId, text, parse_mode: "HTML", reply_markup: replyMarkup });
   },
-  sendPhoto(chatId: number, photo: string, caption: string, replyMarkup?: unknown) {
-    return call("sendPhoto", { chat_id: chatId, photo, caption, parse_mode: "HTML", reply_markup: replyMarkup });
+  sendPhoto(chatId: number, photo: string, caption?: string, replyMarkup?: unknown) {
+    return call("sendPhoto", { chat_id: chatId, photo, ...(caption ? { caption, parse_mode: "HTML" } : {}), reply_markup: replyMarkup });
   },
   editMessageCaption(chatId: number, messageId: number, caption: string, replyMarkup?: unknown) {
     return call("editMessageCaption", { chat_id: chatId, message_id: messageId, caption, parse_mode: "HTML", reply_markup: replyMarkup });
@@ -27,8 +27,8 @@ export const telegram = {
   editMessageText(chatId: number, messageId: number, text: string, replyMarkup?: unknown) {
     return call("editMessageText", { chat_id: chatId, message_id: messageId, text, parse_mode: "HTML", reply_markup: replyMarkup });
   },
-  editMessageMedia(chatId: number, messageId: number, photo: string, caption: string, replyMarkup?: unknown) {
-    return call("editMessageMedia", { chat_id: chatId, message_id: messageId, media: { type: "photo", media: photo, caption, parse_mode: "HTML" }, reply_markup: replyMarkup });
+  editMessageMedia(chatId: number, messageId: number, photo: string, caption?: string, replyMarkup?: unknown) {
+    return call("editMessageMedia", { chat_id: chatId, message_id: messageId, media: { type: "photo", media: photo, ...(caption ? { caption, parse_mode: "HTML" } : {}) }, reply_markup: replyMarkup });
   },
   answerCallbackQuery(id: string, text?: string, showAlert = false) {
     return call("answerCallbackQuery", { callback_query_id: id, text, show_alert: showAlert });
