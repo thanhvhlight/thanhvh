@@ -131,7 +131,7 @@ where not exists (select 1 from public.banks);
 -- V1.1: kỳ kế toán theo tháng, lưu lịch sử khi khóa sổ.
 create table if not exists public.accounting_periods (
   id uuid primary key default gen_random_uuid(),
-  period_key text not null unique check (period_key ~ '^\\d{4}-\\d{2}$'),
+  period_key text not null unique check (period_key ~ '^[0-9]{4}-[0-9]{2}$'),
   status text not null default 'open' check (status in ('open','closed')),
   total_balance numeric(18,0) not null default 0,
   opened_at timestamptz not null default now(),
