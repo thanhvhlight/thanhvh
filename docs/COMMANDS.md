@@ -9,3 +9,5 @@
 - `/bank`: chọn ngân hàng mặc định.
 - `/undo`: hoàn tác giao dịch gần nhất.
 - `/id`: xem Telegram ID.
+
+- `/pending` hoặc nút `⏳ Đang chờ`: xem và xử lý toàn bộ giao dịch chưa xác nhận/hủy.

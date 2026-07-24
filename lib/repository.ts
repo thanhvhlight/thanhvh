@@ -61,6 +61,19 @@ export async function createPending(args: {
   return data;
 }
 
+
+export async function listPendingTransactions(userId?: number, limit = 20) {
+  let q = db().from("pending_transactions")
+    .select("*, customers(id,name,balance,fee_percent), banks(*)")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (userId) q = q.eq("telegram_user_id", userId);
+  const { data, error } = await q;
+  if (error) throwDbError(error);
+  return data || [];
+}
+
 export async function getPending(id: string) {
   const { data, error } = await db().from("pending_transactions").select("*, customers(*), banks(*)").eq("id", id).maybeSingle();
   if (error) throwDbError(error);

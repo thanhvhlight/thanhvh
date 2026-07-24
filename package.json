@@ -1,6 +1,6 @@
 {
   "name": "ads-wallet-bot-v1-2-pro",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "private": true,
   "scripts": {
     "dev": "next dev",

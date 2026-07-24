@@ -7,7 +7,7 @@ import { formatVnd, normalizeName, parseTransaction } from "@/lib/money";
 import {
   cancelPending, changePendingBankByCode, confirmPending, createPending, findCustomer,
   getDefaultBank, getLastConfirmedTransaction, getOrCreateCustomer, getPending,
-  getSummary, listBanks, listCustomers, setDefaultBank, undoTransaction,
+  getSummary, listBanks, listCustomers, listPendingTransactions, setDefaultBank, undoTransaction,
   closeActivePeriod, getActivePeriodSummary, getClosedPeriod, listClosedPeriods,
 } from "@/lib/repository";
 import { telegram } from "@/lib/telegram";
@@ -25,7 +25,7 @@ const mainMenu = {
     [{ text: "👤 Xem khách" }, { text: "📊 Báo cáo ngày" }],
     [{ text: "📅 Chốt tháng" }, { text: "📚 Lịch sử" }],
     [{ text: "🏦 Ngân hàng" }, { text: "↩️ Hoàn tác" }],
-    [{ text: "🆔 Lấy ID" }],
+    [{ text: "⏳ Đang chờ" }, { text: "🆔 Lấy ID" }],
   ],
   resize_keyboard: true,
   is_persistent: true,
@@ -93,6 +93,45 @@ function finalCloseButtons() {
   return kb([[{ text: "✅ Đồng ý", callback_data: "month_close_execute" }, { text: "❌ Quay lại", callback_data: "month_close_preview" }]]);
 }
 
+
+function pendingListText(rows: any[]) {
+  const deposits = rows.filter((row) => row.type === "deposit").length;
+  const ads = rows.length - deposits;
+  return [
+    "<b>⏳ GIAO DỊCH ĐANG CHỜ</b>",
+    "",
+    `Tổng cộng: <b>${rows.length}</b>`,
+    `Nạp tiền: <b>${deposits}</b> • Chốt Ads: <b>${ads}</b>`,
+    "",
+    "Bấm vào giao dịch bên dưới để xác nhận hoặc hủy.",
+  ].join("\n");
+}
+
+function pendingListButtons(rows: any[]) {
+  return kb(rows.map((row) => [{
+    text: `${row.type === "deposit" ? "➕" : "➖"} ${row.customers?.name || "Khách"} • ${formatVnd(Number(row.type === "deposit" ? row.amount : Number(row.amount) + Number(row.fee_amount)))}`,
+    callback_data: `pending_view:${row.id}`,
+  }]));
+}
+
+async function sendPendingDetail(chatId: number, pending: any) {
+  if (pending.type === "deposit") return sendDeposit(chatId, pending);
+  const customer = pending.customers;
+  const amount = Number(pending.amount);
+  const fee = Number(pending.fee_amount);
+  const balance = Number(customer?.balance || 0);
+  return telegram.sendMessage(chatId, [
+    `<b>📉 CHỐT ADS • ${vnDateLabel()}</b>`, "",
+    `👤 <b>${customer?.name || "Khách"}</b>`, "",
+    `Facebook      <b>${formatVnd(amount)}</b>`,
+    `Phí (${Number(customer?.fee_percent || config.defaultFeePercent)}%)       <b>${formatVnd(fee)}</b>`,
+    "───────────────",
+    `Tổng trừ      <b>${formatVnd(amount + fee)}</b>`, "",
+    "<b>Số dư</b>",
+    `${formatVnd(balance)} ➜ <b>${formatVnd(balance - amount - fee)}</b>`,
+  ].join("\n"), adsButtons(pending.id));
+}
+
 async function handleMessage(update: TelegramUpdate) {
   const msg = update.message;
   if (!msg?.text || !msg.from) return;
@@ -107,7 +146,7 @@ async function handleMessage(update: TelegramUpdate) {
 
   if (text === "/start" || text === "/help") {
     return telegram.sendMessage(chatId, [
-      "<b>ADS WALLET BOT V1.2 PRO</b>",
+      "<b>Thanh ADS Manager/b>",
       "",
       "Chọn nút bên dưới hoặc nhập trực tiếp.",
     ].join("\n"), mainMenu);
@@ -121,6 +160,11 @@ async function handleMessage(update: TelegramUpdate) {
   }
   if (text === "👤 Xem khách") {
     return telegram.sendMessage(chatId, "Nhập tên khách cần xem.", mainMenu);
+  }
+  if (text === "⏳ Đang chờ" || text === "/pending") {
+    const rows = await listPendingTransactions(userId);
+    if (!rows.length) return telegram.sendMessage(chatId, "✅ Không có giao dịch nào đang chờ.", mainMenu);
+    return telegram.sendMessage(chatId, pendingListText(rows), pendingListButtons(rows));
   }
   if (text === "🆔 Lấy ID" || text === "/id") return telegram.sendMessage(chatId, `Telegram User ID: <code>${userId}</code>`, mainMenu);
   if (text === "📊 Báo cáo ngày" || text === "/today") return telegram.sendMessage(chatId, await reportText("today"), mainMenu);
@@ -187,6 +231,12 @@ async function handleCallback(update: TelegramUpdate) {
 
   try {
     if (action === "noop") return telegram.answerCallbackQuery(q.id, "Đã giữ nguyên");
+    if (action === "pending_view") {
+      const pending = await getPending(id);
+      if (!pending || pending.status !== "pending") throw new Error("Giao dịch này không còn ở trạng thái chờ");
+      await telegram.answerCallbackQuery(q.id);
+      return sendPendingDetail(chatId, pending);
+    }
     if (action === "pending_cancel") {
       const pending = await getPending(id);
       await cancelPending(id); await telegram.answerCallbackQuery(q.id, "Đã hủy");

@@ -17,11 +17,13 @@ type CustomerRow = { id: string; name: string; balance: number | string; fee_per
 
 type TransactionRow = {
   id: string;
-  type: "deposit" | "ads";
+  type: "deposit" | "ads" | "reversal";
   amount: number | string;
   fee_amount: number | string;
   total_effect: number | string;
   created_at: string;
+  status?: "confirmed" | "reversed";
+  period_id?: string | null;
   customers: { id: string; name: string } | { id: string; name: string }[] | null;
 };
 
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest) {
     const monthStartKey = `${fromKey.slice(0, 7)}-01`;
     const monthToRange = isoRangeForDateKeys(monthStartKey, toKey);
 
-    const [rangeResult, monthResult, customersResult, recentResult, bankResult, periodResult] = await Promise.all([
+    const [rangeResult, monthResult, customersResult, recentResult, pendingResult, bankResult, periodResult] = await Promise.all([
       db().from("transactions")
         .select("id,type,amount,fee_amount,total_effect,created_at,customers(id,name)")
         .eq("status", "confirmed")
@@ -61,17 +63,21 @@ export async function GET(request: NextRequest) {
         .order("created_at", { ascending: true }),
       db().from("customers").select("id,name,balance,fee_percent").order("name"),
       db().from("transactions")
-        .select("id,type,amount,fee_amount,total_effect,created_at,customers(id,name)")
-        .eq("status", "confirmed")
+        .select("id,type,amount,fee_amount,total_effect,created_at,status,period_id,customers(id,name)")
         .order("created_at", { ascending: false })
         .limit(20),
+      db().from("pending_transactions")
+        .select("id,type,amount,fee_amount,status,created_at,customers(id,name)")
+        .in("status", ["pending", "cancelled", "expired"])
+        .order("created_at", { ascending: false })
+        .limit(100),
       db().from("banks").select("id,label,account_no,account_name,is_default").eq("is_active", true)
         .order("is_default", { ascending: false }).limit(1).maybeSingle(),
       db().from("accounting_periods").select("id,period_key,status,total_balance,opened_at")
         .eq("status", "open").order("period_key", { ascending: false }).limit(1).maybeSingle(),
     ]);
 
-    for (const result of [rangeResult, monthResult, customersResult, recentResult, bankResult, periodResult]) {
+    for (const result of [rangeResult, monthResult, customersResult, recentResult, pendingResult, bankResult, periodResult]) {
       if (result.error) throw result.error;
     }
 
@@ -157,6 +163,43 @@ export async function GET(request: NextRequest) {
       };
     });
 
+
+    const manageableTransactions = ((recentResult.data || []) as unknown as TransactionRow[]).map((row) => {
+      const customer = customerOf(row.customers);
+      return {
+        id: row.id,
+        kind: "transaction" as const,
+        type: row.type,
+        status: row.status || "confirmed",
+        amount: Number(row.amount),
+        fee: Number(row.fee_amount),
+        totalEffect: Number(row.total_effect),
+        createdAt: row.created_at,
+        customer: customer?.name || "Không rõ",
+        locked: Boolean(row.period_id && periodResult.data && row.period_id !== periodResult.data.id),
+      };
+    });
+
+    const manageablePending = ((pendingResult.data || []) as any[]).map((row) => {
+      const customer = Array.isArray(row.customers) ? row.customers[0] : row.customers;
+      return {
+        id: row.id,
+        kind: "pending" as const,
+        type: row.type,
+        status: row.status,
+        amount: Number(row.amount),
+        fee: Number(row.fee_amount),
+        totalEffect: row.type === "deposit" ? Number(row.amount) : -(Number(row.amount) + Number(row.fee_amount)),
+        createdAt: row.created_at,
+        customer: customer?.name || "Không rõ",
+        locked: false,
+      };
+    });
+
+    const management = [...manageablePending, ...manageableTransactions]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 100);
+
     return NextResponse.json({
       ok: true,
       range: { from: fromKey, to: toKey },
@@ -164,6 +207,7 @@ export async function GET(request: NextRequest) {
       daily,
       customers: customerRows,
       recent,
+      management,
       bank: bankResult.data || null,
       activePeriod: periodResult.data || null,
       generatedAt: new Date().toISOString(),
