@@ -1,12 +1,13 @@
 {
-  "name": "ads-wallet-bot-v1",
+  "name": "ads-wallet-bot-v1-1-pro",
   "version": "1.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "validate": "node scripts/validate-project.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
