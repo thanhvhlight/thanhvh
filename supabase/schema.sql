@@ -1,4 +1,4 @@
--- Ads Wallet Bot v1.1 - chạy toàn bộ file này trong Supabase SQL Editor.
+-- Thanh ADS Manager PRO V1.3 - chạy toàn bộ file này trong Supabase SQL Editor.
 create extension if not exists pgcrypto;
 
 create table if not exists public.customers (

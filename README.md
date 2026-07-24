@@ -1,4 +1,4 @@
-# Ads Wallet Bot v1.1
+# Thanh ADS Manager PRO V1.3
 
 Bot Telegram tạo VietQR và quản lý số dư quảng cáo theo từng khách, thao tác bằng một dòng.
 
@@ -111,9 +111,28 @@ Bot không cho khóa sổ nếu còn giao dịch đang chờ xác nhận hoặc 
 - Caption QR đã được rút gọn.
 
 
-## V1.2.2
+## V1.2.3
 - Telegram có mục giao dịch đang chờ, không có chức năng xóa dữ liệu.
 - Website có bảng quản lý giao dịch và nút Xóa dành cho dữ liệu test.
 - Xóa giao dịch đã xác nhận sẽ tự tính lại số dư khách.
 - Không cho xóa giao dịch thuộc tháng đã khóa.
-- Chạy `supabase/upgrade-v1.2.1-to-v1.2.2.sql` một lần khi nâng cấp.
+- Chạy `supabase/upgrade-v1.2.1-to-v1.2.3.sql` một lần khi nâng cấp.
+
+## Duyệt và xóa giao dịch trên website
+
+- **Duyệt** chỉ xuất hiện với giao dịch đang chờ. Khi duyệt, hệ thống ghi giao dịch chính thức và cập nhật số dư khách ngay.
+- **Xóa** dùng để dọn dữ liệu test. Nếu xóa giao dịch đã xác nhận, hệ thống tự tính lại số dư khách.
+- Giao dịch thuộc tháng đã khóa không thể xóa.
+- Sau cả hai thao tác, Dashboard và biểu đồ tự tải lại theo số liệu mới.
+
+
+## SQL bắt buộc cho nút Duyệt trên website
+
+Khi nâng cấp từ bản cũ, chạy **một lần** file:
+
+```text
+supabase/upgrade-v1.2.2-to-v1.3.sql
+```
+
+Trong Supabase: **SQL Editor → New query → dán toàn bộ file → Run without RLS**. Không chạy lại `schema.sql` nếu hệ thống đang có dữ liệu.
+

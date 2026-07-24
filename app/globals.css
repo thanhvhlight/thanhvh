@@ -152,3 +152,34 @@ td small { display: block; color: var(--muted); margin-top: 4px; }
 .status-chip.pending { background:#fff3d6; color:#9a6500; }
 .status-chip.confirmed { background:#dff5e9; color:#13784d; }
 .status-chip.reversed,.status-chip.cancelled,.status-chip.expired { background:#fee6e2; color:#aa4141; }
+
+.transaction-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.approve-transaction,
+.delete-transaction {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.approve-transaction {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.approve-transaction:hover:not(:disabled) {
+  background: #bbf7d0;
+}
+
+.approve-transaction:disabled,
+.delete-transaction:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}

@@ -31,6 +31,16 @@ const mainMenu = {
   is_persistent: true,
 };
 
+async function restoreMainMenu(chatId: number) {
+  return telegram.sendMessage(chatId, "⌨️ <b>Menu chính</b>", mainMenu);
+}
+
+async function sendInlineThenRestoreMenu<T>(chatId: number, sender: () => Promise<T>) {
+  const result = await sender();
+  await restoreMainMenu(chatId);
+  return result;
+}
+
 function depositButtons(id: string) {
   return kb([
     [{ text: "✅ Đã nhận tiền", callback_data: `deposit_confirm:${id}` }],
@@ -44,7 +54,9 @@ function adsButtons(id: string) {
 }
 
 async function sendDeposit(chatId: number, pending: any) {
-  return telegram.sendPhoto(chatId, vietQrUrl(pending.banks as Bank, Number(pending.amount)), undefined, depositButtons(pending.id));
+  return sendInlineThenRestoreMenu(chatId, () =>
+    telegram.sendPhoto(chatId, vietQrUrl(pending.banks as Bank, Number(pending.amount)), undefined, depositButtons(pending.id)),
+  );
 }
 
 async function customerText(customer: any) {
@@ -120,7 +132,7 @@ async function sendPendingDetail(chatId: number, pending: any) {
   const amount = Number(pending.amount);
   const fee = Number(pending.fee_amount);
   const balance = Number(customer?.balance || 0);
-  return telegram.sendMessage(chatId, [
+  return sendInlineThenRestoreMenu(chatId, () => telegram.sendMessage(chatId, [
     `<b>📉 CHỐT ADS • ${vnDateLabel()}</b>`, "",
     `👤 <b>${customer?.name || "Khách"}</b>`, "",
     `Facebook      <b>${formatVnd(amount)}</b>`,
@@ -129,7 +141,7 @@ async function sendPendingDetail(chatId: number, pending: any) {
     `Tổng trừ      <b>${formatVnd(amount + fee)}</b>`, "",
     "<b>Số dư</b>",
     `${formatVnd(balance)} ➜ <b>${formatVnd(balance - amount - fee)}</b>`,
-  ].join("\n"), adsButtons(pending.id));
+  ].join("\n"), adsButtons(pending.id)));
 }
 
 async function handleMessage(update: TelegramUpdate) {
@@ -144,9 +156,9 @@ async function handleMessage(update: TelegramUpdate) {
     return;
   }
 
-  if (text === "/start" || text === "/help") {
+  if (text === "/start" || text === "/help" || text === "/menu") {
     return telegram.sendMessage(chatId, [
-      "<b>Thanh ADS Manager/b>",
+      "<b>Thanh ADS Manager PRO</b>",
       "",
       "Chọn nút bên dưới hoặc nhập trực tiếp.",
     ].join("\n"), mainMenu);
@@ -164,31 +176,31 @@ async function handleMessage(update: TelegramUpdate) {
   if (text === "⏳ Đang chờ" || text === "/pending") {
     const rows = await listPendingTransactions(userId);
     if (!rows.length) return telegram.sendMessage(chatId, "✅ Không có giao dịch nào đang chờ.", mainMenu);
-    return telegram.sendMessage(chatId, pendingListText(rows), pendingListButtons(rows));
+    return sendInlineThenRestoreMenu(chatId, () => telegram.sendMessage(chatId, pendingListText(rows), pendingListButtons(rows)));
   }
   if (text === "🆔 Lấy ID" || text === "/id") return telegram.sendMessage(chatId, `Telegram User ID: <code>${userId}</code>`, mainMenu);
   if (text === "📊 Báo cáo ngày" || text === "/today") return telegram.sendMessage(chatId, await reportText("today"), mainMenu);
   if (text === "📅 Chốt tháng") {
     const summary = await getActivePeriodSummary();
-    return telegram.sendMessage(chatId, monthCloseText(summary), closeMonthButtons());
+    return sendInlineThenRestoreMenu(chatId, () => telegram.sendMessage(chatId, monthCloseText(summary), closeMonthButtons()));
   }
   if (text === "/month") {
     const summary = await getActivePeriodSummary();
-    return telegram.sendMessage(chatId, monthCloseText(summary), closeMonthButtons());
+    return sendInlineThenRestoreMenu(chatId, () => telegram.sendMessage(chatId, monthCloseText(summary), closeMonthButtons()));
   }
   if (text === "📚 Lịch sử" || text === "/history") {
     const periods = await listClosedPeriods();
     if (!periods.length) return telegram.sendMessage(chatId, "Chưa có tháng nào đã khóa sổ.");
-    return telegram.sendMessage(chatId, "<b>📚 LỊCH SỬ THÁNG</b>", kb(periods.map((p: any) => [{ text: p.period_key.split("-").reverse().join("/"), callback_data: `history_period:${p.id}` }])));
+    return sendInlineThenRestoreMenu(chatId, () => telegram.sendMessage(chatId, "<b>📚 LỊCH SỬ THÁNG</b>", kb(periods.map((p: any) => [{ text: p.period_key.split("-").reverse().join("/"), callback_data: `history_period:${p.id}` }]))));
   }
   if (text === "🏦 Ngân hàng" || text === "/bank") {
     const banks = await listBanks();
-    return telegram.sendMessage(chatId, "<b>🏦 CHỌN NGÂN HÀNG MẶC ĐỊNH</b>", kb(banks.map((b: Bank) => [{ text: `${b.is_default ? "✅ " : ""}${b.label} • ${b.account_no}`, callback_data: `bank_default:${b.id}` }])));
+    return sendInlineThenRestoreMenu(chatId, () => telegram.sendMessage(chatId, "<b>🏦 CHỌN NGÂN HÀNG MẶC ĐỊNH</b>", kb(banks.map((b: Bank) => [{ text: `${b.is_default ? "✅ " : ""}${b.label} • ${b.account_no}`, callback_data: `bank_default:${b.id}` }]))));
   }
   if (text === "↩️ Hoàn tác" || text === "/undo") {
     const last = await getLastConfirmedTransaction(userId);
     if (!last) return telegram.sendMessage(chatId, "Không có giao dịch nào để hoàn tác.");
-    return telegram.sendMessage(chatId, ["<b>↩️ HOÀN TÁC GIAO DỊCH?</b>", "", `Khách: ${last.customers.name}`, `Loại: ${last.type === "deposit" ? "Nạp tiền" : "Chi phí Ads"}`, `Giá trị số dư: ${formatVnd(Math.abs(Number(last.total_effect)))}`].join("\n"), kb([[{ text: "✅ Hoàn tác", callback_data: `undo_confirm:${last.id}` }, { text: "❌ Không", callback_data: "noop" }]]));
+    return sendInlineThenRestoreMenu(chatId, () => telegram.sendMessage(chatId, ["<b>↩️ HOÀN TÁC GIAO DỊCH?</b>", "", `Khách: ${last.customers.name}`, `Loại: ${last.type === "deposit" ? "Nạp tiền" : "Chi phí Ads"}`, `Giá trị số dư: ${formatVnd(Math.abs(Number(last.total_effect)))}`].join("\n"), kb([[{ text: "✅ Hoàn tác", callback_data: `undo_confirm:${last.id}` }, { text: "❌ Không", callback_data: "noop" }]])));
   }
 
   const parsed = parseTransaction(text);
@@ -202,7 +214,7 @@ async function handleMessage(update: TelegramUpdate) {
     const fee = Math.round(parsed.amount * Number(customer.fee_percent) / 100);
     const after = Number(customer.balance) - parsed.amount - fee;
     const pending = await createPending({ customerId: customer.id, type: "ads", amount: parsed.amount, feeAmount: fee, telegramUserId: userId, telegramChatId: chatId });
-    return telegram.sendMessage(chatId, [
+    return sendInlineThenRestoreMenu(chatId, () => telegram.sendMessage(chatId, [
       `<b>📉 CHỐT ADS • ${vnDateLabel()}</b>`, "",
       `👤 <b>${customer.name}</b>`, "",
       `Facebook      <b>${formatVnd(parsed.amount)}</b>`,
@@ -212,7 +224,7 @@ async function handleMessage(update: TelegramUpdate) {
       `<b>Số dư</b>`,
       `${formatVnd(Number(customer.balance))} ➜ <b>${formatVnd(after)}</b>`,
       after < 0 ? "\n⚠️ Số dư sau giao dịch sẽ âm." : "",
-    ].join("\n"), adsButtons(pending.id));
+    ].join("\n"), adsButtons(pending.id)));
   }
 
   const customer = await findCustomer(text);

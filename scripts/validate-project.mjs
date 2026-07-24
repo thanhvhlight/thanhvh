@@ -10,6 +10,7 @@ const required = [
   "lib/vietqr.ts",
   "supabase/schema.sql",
   "supabase/upgrade-v1.1-to-v1.2.sql",
+  "INSTALL.md",
   "package.json",
 ];
 for (const file of required) if (!existsSync(file)) throw new Error(`Thiếu file: ${file}`);

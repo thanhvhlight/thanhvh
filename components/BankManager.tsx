@@ -56,7 +56,7 @@ export default function BankManager() {
 
   return <main className="admin-shell">
     <section className="admin-card">
-      <span className="badge">V1.2 PRO</span>
+      <span className="badge">V1.3 PRO</span>
       <h1>Quản lý ngân hàng nhận tiền</h1>
       <p>Thêm, sửa, xóa và chọn tài khoản mặc định. QR mới sẽ dùng tài khoản đang mặc định.</p>
       <label>Khóa quản trị</label>

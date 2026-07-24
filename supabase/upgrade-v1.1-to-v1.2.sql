@@ -1,4 +1,4 @@
--- ADS Wallet Bot V1.2 Pro
+-- Thanh ADS Manager PRO
 -- Chạy file này đúng một lần nếu đang nâng cấp từ V1.1.
 
 create index if not exists transactions_created_at_idx on public.transactions(created_at desc);
@@ -49,7 +49,7 @@ begin
   return query select current_period.id, current_period.period_key, total, next_key;
 end $$;
 
--- ADS Wallet Bot V1.2.2: quản lý và xóa dữ liệu test từ website.
+-- Thanh ADS Manager PRO V1.3: quản lý và xóa dữ liệu test từ website.
 create or replace function public.admin_delete_pending_transaction(p_pending_id uuid)
 returns table(deleted_id uuid, customer_name text)
 language plpgsql security definer set search_path = public as $$

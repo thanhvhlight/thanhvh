@@ -78,6 +78,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("Nhập khóa quản trị để xem dữ liệu.");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   async function load(nextFrom = from, nextTo = to) {
     if (!adminKey.trim()) return setMessage("Hãy nhập ADMIN_SETUP_KEY.");
@@ -98,6 +99,26 @@ export default function Dashboard() {
     setFrom(nextFrom); setTo(nextTo); void load(nextFrom, nextTo);
   }
   function submit(event: FormEvent) { event.preventDefault(); void load(); }
+  async function approveItem(item: DashboardData["management"][number]) {
+    if (item.kind !== "pending" || item.status !== "pending") return;
+    if (!window.confirm(`Duyệt giao dịch của ${item.customer}? Số dư sẽ được tính lại ngay.`)) return;
+    setApprovingId(item.id);
+    try {
+      const response = await fetch(`/api/admin/transactions/${item.id}?kind=pending`, {
+        method: "POST",
+        headers: { "x-admin-key": adminKey },
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.message || "Không duyệt được giao dịch");
+      setMessage(`Đã duyệt giao dịch của ${item.customer} và tính lại số dư.`);
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Lỗi không xác định");
+    } finally {
+      setApprovingId(null);
+    }
+  }
+
   async function deleteItem(item: DashboardData["management"][number]) {
     const warning = item.kind === "transaction"
       ? `Xóa giao dịch ${item.customer}? Số dư khách sẽ được tính lại.`
@@ -116,7 +137,7 @@ export default function Dashboard() {
   const chartData = useMemo(() => data?.daily || [], [data]);
 
   return <main className="dashboard-shell">
-    <header className="dashboard-header"><div><span className="product-badge">Thanh ADS Manger PRO</span><h1>Dashboard Nạp Ads</h1><p>Theo dõi tiền nạp, chi phí Ads, phí dịch vụ và số dư theo từng ngày Việt Nam.</p></div><div className="status-stack"><span className="status-pill">● Bot hoạt động</span><span>{data?.bank ? `${data.bank.label} • ${data.bank.account_no}` : "Chưa tải ngân hàng"}</span></div></header>
+    <header className="dashboard-header"><div><span className="product-badge">Thanh ADS Manager PRO</span><h1>Dashboard Nạp Ads</h1><p>Theo dõi tiền nạp, chi phí Ads, phí dịch vụ và số dư theo từng ngày Việt Nam.</p></div><div className="status-stack"><span className="status-pill">● Bot hoạt động</span><span>{data?.bank ? `${data.bank.label} • ${data.bank.account_no}` : "Chưa tải ngân hàng"}</span></div></header>
     <section className="dashboard-control">
       <div className="admin-key-box"><label htmlFor="admin-key">Khóa quản trị</label><div className="control-row"><input id="admin-key" type="password" value={adminKey} onChange={(event) => setAdminKey(event.target.value)} placeholder="ADMIN_SETUP_KEY"/><button type="button" onClick={() => void load()} disabled={loading}>{loading ? "Đang tải" : "Xem dashboard"}</button></div></div>
       <div className="quick-ranges"><button type="button" onClick={() => chooseRange("today")}>Hôm nay</button><button type="button" onClick={() => chooseRange("yesterday")}>Hôm qua</button><button type="button" onClick={() => chooseRange("7days")}>7 ngày</button><button type="button" onClick={() => chooseRange("month")}>Tháng này</button></div>
@@ -129,7 +150,7 @@ export default function Dashboard() {
       <section className="data-grid"><article className="table-card"><div className="section-heading"><div><span>Bảng khách hàng</span><h2>Nạp, Ads và số dư</h2></div></div><div className="table-wrap"><table><thead><tr><th>Khách</th><th>Nạp</th><th>Ads</th><th>Phí</th><th>Số dư</th></tr></thead><tbody>{data.customers.length ? data.customers.map((customer) => <tr key={customer.id}><td><strong>{customer.name}</strong><small>Phí {customer.feePercent}%</small></td><td>{money.format(customer.deposits)}</td><td>{money.format(customer.ads)}</td><td>{money.format(customer.fees)}</td><td className={customer.balance < 0 ? "negative" : "positive"}>{money.format(customer.balance)}</td></tr>) : <tr><td colSpan={5} className="empty">Chưa có dữ liệu trong khoảng đã chọn.</td></tr>}</tbody></table></div></article>
       <article className="recent-card"><div className="section-heading"><div><span>Cập nhật mới</span><h2>Giao dịch gần nhất</h2></div></div><div className="recent-list">{data.recent.length ? data.recent.map((item) => <div key={item.id} className="recent-item"><span className={item.type === "deposit" ? "transaction-icon deposit" : "transaction-icon ads"}>{item.type === "deposit" ? "+" : "−"}</span><div><strong>{item.customer}</strong><small>{formatTime(item.createdAt)}</small></div><b className={item.type === "deposit" ? "positive" : "negative"}>{item.type === "deposit" ? "+" : "−"}{money.format(Math.abs(item.totalEffect))}</b></div>) : <p className="empty">Chưa có giao dịch.</p>}</div></article></section>
 
-      <section className="transaction-manager"><article className="table-card"><div className="section-heading"><div><span>Quản lý dữ liệu test</span><h2>Giao dịch</h2></div><small>Xóa tại website; Telegram không có nút xóa.</small></div><div className="table-wrap"><table><thead><tr><th>Thời gian</th><th>Khách</th><th>Loại</th><th>Trạng thái</th><th>Số tiền</th><th>Thao tác</th></tr></thead><tbody>{data.management.length ? data.management.map((item) => <tr key={`${item.kind}-${item.id}`}><td>{formatTime(item.createdAt)}</td><td><strong>{item.customer}</strong></td><td>{item.type === "deposit" ? "Nạp" : item.type === "ads" ? "Ads" : "Hoàn tác"}</td><td><span className={`status-chip ${item.status}`}>{item.status === "pending" ? "Đang chờ" : item.status === "confirmed" ? "Đã xác nhận" : item.status === "reversed" ? "Đã hoàn tác" : item.status}</span></td><td className={item.totalEffect >= 0 ? "positive" : "negative"}>{item.totalEffect >= 0 ? "+" : "−"}{money.format(Math.abs(item.totalEffect))}</td><td><button className="delete-transaction" type="button" disabled={item.locked || deletingId === item.id} onClick={() => void deleteItem(item)}>{item.locked ? "Đã khóa" : deletingId === item.id ? "Đang xóa" : "Xóa"}</button></td></tr>) : <tr><td colSpan={6} className="empty">Không có giao dịch.</td></tr>}</tbody></table></div></article></section>
+      <section className="transaction-manager"><article className="table-card"><div className="section-heading"><div><span>Quản lý dữ liệu test</span><h2>Giao dịch</h2></div><small>Xóa tại website; Telegram không có nút xóa.</small></div><div className="table-wrap"><table><thead><tr><th>Thời gian</th><th>Khách</th><th>Loại</th><th>Trạng thái</th><th>Số tiền</th><th>Thao tác</th></tr></thead><tbody>{data.management.length ? data.management.map((item) => <tr key={`${item.kind}-${item.id}`}><td>{formatTime(item.createdAt)}</td><td><strong>{item.customer}</strong></td><td>{item.type === "deposit" ? "Nạp" : item.type === "ads" ? "Ads" : "Hoàn tác"}</td><td><span className={`status-chip ${item.status}`}>{item.status === "pending" ? "Đang chờ" : item.status === "confirmed" ? "Đã xác nhận" : item.status === "reversed" ? "Đã hoàn tác" : item.status}</span></td><td className={item.totalEffect >= 0 ? "positive" : "negative"}>{item.totalEffect >= 0 ? "+" : "−"}{money.format(Math.abs(item.totalEffect))}</td><td><div className="transaction-actions">{item.kind === "pending" && item.status === "pending" ? <button className="approve-transaction" type="button" disabled={approvingId === item.id || deletingId === item.id} onClick={() => void approveItem(item)}>{approvingId === item.id ? "Đang duyệt" : "Duyệt"}</button> : null}<button className="delete-transaction" type="button" disabled={item.locked || deletingId === item.id || approvingId === item.id} onClick={() => void deleteItem(item)}>{item.locked ? "Đã khóa" : deletingId === item.id ? "Đang xóa" : "Xóa"}</button></div></td></tr>) : <tr><td colSpan={6} className="empty">Không có giao dịch.</td></tr>}</tbody></table></div></article></section>
       <footer className="dashboard-footer"><span>Kỳ đang mở: <strong>{data.activePeriod?.period_key || "Chưa có"}</strong></span><nav><a href="/banks">Quản lý ngân hàng</a><a href="/setup">Kiểm tra Telegram</a><a href="/api/health">API Health</a></nav></footer>
     </> : <section className="dashboard-placeholder"><strong>Dashboard đang được bảo vệ</strong><p>Nhập khóa quản trị phía trên. Dữ liệu tài chính không hiển thị công khai.</p></section>}
   </main>;

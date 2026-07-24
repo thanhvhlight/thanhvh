@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Thanh ADS Manager",
+  title: "Thanh ADS Manager PRO",
   description: "Dashboard Nạp Ads và bot Telegram VietQR",
 };
 
