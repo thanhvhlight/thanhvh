@@ -183,3 +183,21 @@ td small { display: block; color: var(--muted); margin-top: 4px; }
   cursor: not-allowed;
   opacity: .55;
 }
+
+/* V1.3.1 - chỉnh phí nhanh theo khách */
+.fee-editor { min-width: 250px; display: grid; gap: 8px; }
+.fee-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.fee-presets button { border: 1px solid #d7dde8; background: #fff; border-radius: 999px; padding: 5px 9px; font-weight: 700; cursor: pointer; }
+.fee-presets button.active { background: #111827; color: #fff; border-color: #111827; }
+.fee-custom { display: flex; align-items: center; gap: 6px; }
+.fee-custom input { width: 76px; min-height: 36px; border: 1px solid #cbd5e1; border-radius: 9px; padding: 6px 8px; }
+.fee-custom button { min-height: 36px; border: 0; border-radius: 9px; padding: 6px 12px; font-weight: 800; background: #2563eb; color: white; cursor: pointer; }
+.fee-editor button:disabled { opacity: .6; cursor: wait; }
+
+/* V1.3.2 - chỉnh phí gọn ngay cột khách */
+.inline-fee-editor { margin-top: 7px; display: grid; gap: 7px; justify-items: start; }
+.inline-fee-editor select { min-width: 116px; min-height: 34px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: #1f2937; padding: 5px 9px; font-weight: 800; cursor: pointer; }
+.inline-fee-editor select:disabled { opacity: .6; cursor: wait; }
+.inline-fee-custom { display: flex; gap: 6px; align-items: center; }
+.inline-fee-custom input { width: 76px; min-height: 34px; border: 1px solid #cbd5e1; border-radius: 9px; padding: 5px 8px; }
+.inline-fee-custom button { min-height: 34px; border: 0; border-radius: 9px; background: #2563eb; color: #fff; font-weight: 800; padding: 5px 10px; cursor: pointer; }

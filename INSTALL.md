@@ -1,4 +1,4 @@
-# Cài đặt Thanh ADS Manager PRO V1.3
+# Cài đặt Thanh ADS Manager PRO V1.3.2
 
 ## A. Cài mới hoàn toàn
 
@@ -155,12 +155,12 @@ Sau khi kiểm tra, dữ liệu test có thể xóa tại Dashboard website.
 
 ---
 
-## B. Nâng cấp từ V1.2.3 lên V1.3
+## B. Nâng cấp từ V1.2.3 lên V1.3.2
 
-V1.3 đổi thương hiệu và hoàn thiện tài liệu, không thay đổi cấu trúc database.
+V1.3.2 đổi thương hiệu và hoàn thiện tài liệu, không thay đổi cấu trúc database.
 
 1. Sao lưu repository hiện tại nếu cần.
-2. Upload đè toàn bộ code V1.3 lên GitHub.
+2. Upload đè toàn bộ code V1.3.2 lên GitHub.
 3. **Không chạy lại `schema.sql`.**
 4. **Không cần chạy SQL nâng cấp.**
 5. Giữ nguyên toàn bộ Environment Variables.
@@ -175,7 +175,7 @@ Dữ liệu Supabase hiện có được giữ nguyên.
 
 - Từ V1.1: chạy `supabase/upgrade-v1.1-to-v1.2.sql` một lần.
 - Nếu chưa có chức năng xóa dữ liệu test trên website: chạy `supabase/upgrade-v1.2.1-to-v1.2.2.sql` một lần.
-- Sau đó upload code V1.3 và redeploy.
+- Sau đó upload code V1.3.2 và redeploy.
 
 Không chạy các file nâng cấp nhiều lần nếu trước đó đã chạy thành công.
 
@@ -231,3 +231,11 @@ supabase/upgrade-v1.2.2-to-v1.3.sql
 
 Trong Supabase: **SQL Editor → New query → dán toàn bộ file → Run without RLS**. Không chạy lại `schema.sql` nếu hệ thống đang có dữ liệu.
 
+
+## Nâng cấp V1.3 lên V1.3.2
+
+1. Upload đè toàn bộ mã nguồn lên GitHub.
+2. Chạy `supabase/upgrade-v1.3-to-v1.3.2.sql` đúng một lần trong Supabase SQL Editor.
+3. Redeploy Vercel không dùng build cache.
+4. Mở Dashboard, tại bảng khách hàng chọn nhanh phí `0%` hoặc `12%`, hoặc nhập mức tùy chỉnh rồi bấm **Lưu**.
+5. Không cần kết nối lại Telegram webhook và không cần sửa Environment Variables.

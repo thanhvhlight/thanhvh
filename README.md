@@ -1,4 +1,4 @@
-# Thanh ADS Manager PRO V1.3
+# Thanh ADS Manager PRO V1.3.2
 
 Bot Telegram tạo VietQR và quản lý số dư quảng cáo theo từng khách, thao tác bằng một dòng.
 
@@ -136,3 +136,9 @@ supabase/upgrade-v1.2.2-to-v1.3.sql
 
 Trong Supabase: **SQL Editor → New query → dán toàn bộ file → Run without RLS**. Không chạy lại `schema.sql` nếu hệ thống đang có dữ liệu.
 
+
+## Phí riêng theo khách — V1.3.2
+
+Trong bảng khách hàng trên Dashboard, Admin có thể chọn nhanh `0%`, `5%`, `8%`, `10%`, `12%` hoặc nhập một tỷ lệ tùy chỉnh từ `0–100%` và bấm **Lưu**.
+
+Mức phí mới chỉ áp dụng cho giao dịch Ads được tạo sau thời điểm lưu. Giao dịch cũ và giao dịch đang chờ giữ nguyên phí đã ghi nhận, tránh làm sai lịch sử.
