@@ -1,51 +1,110 @@
-# Ads Wallet Bot V1.1 Pro
+# Ads Wallet Bot v1.1
 
-Bot Telegram quản lý tiền khách chạy Facebook Ads, tạo VietQR, tính phí 12%, theo dõi số dư và khóa sổ theo tháng.
+Bot Telegram tạo VietQR và quản lý số dư quảng cáo theo từng khách, thao tác bằng một dòng.
 
-## Cú pháp nhanh
+## Cú pháp
 
 ```text
-+10tr anh son
--7tr250 anh son
-anh son
++10tr anh son       # tạo QR nhận 10.000.000đ
+-7tr250 anh son     # Facebook tiêu 7.250.000đ, tự cộng phí 12%
+anh son             # xem số dư khách
+/today              # báo cáo hôm nay
+/month              # tổng kết và chốt tháng
+/history            # xem lịch sử các tháng đã khóa
+/bank               # chọn ngân hàng mặc định
+/undo               # hoàn tác giao dịch vừa xác nhận
+/id                 # lấy Telegram User ID
 ```
 
-## Chức năng
+Tên có dấu hoặc không dấu đều nhận diện cùng một khách. QR chỉ được gửi qua URL VietQR, không lưu ảnh vào Supabase.
 
-- Tạo QR nạp tiền, không lưu file ảnh QR vào Supabase.
-- Chỉ cộng tiền khi bấm **Đã nhận tiền**.
-- Tự tính chi phí Facebook + phí dịch vụ 12%.
-- Tra cứu số dư theo tên khách.
-- `/today`: báo cáo ngày.
-- `/month`: tổng kết và khóa sổ tháng.
-- Sau khi khóa sổ: lưu lịch sử, số dư tất cả khách về 0, mở tháng kế tiếp.
-- `/history`: xem lại tháng đã khóa.
-- `/bank`: chọn ngân hàng mặc định.
-- `/undo`: hoàn tác giao dịch gần nhất.
-- Trang `/banks`: thêm ngân hàng nhận tiền bằng khóa quản trị.
-- Trang `/setup`: kết nối và kiểm tra Telegram webhook.
+## Luồng tháng
 
-## Cài đặt nhanh
+1. Trong tháng, xác nhận tiền vào và chi phí Ads như bình thường.
+2. Gửi `/month` để xem số dư từng khách và tổng số dư.
+3. Bấm `Chốt khóa sổ` rồi `Đồng ý`.
+4. Bot lưu lịch sử tháng, khóa kỳ cũ, đưa số dư tất cả khách về 0 và mở tháng kế tiếp.
+5. Dùng `/history` để xem lại tháng đã khóa. Lịch sử chỉ xem, không sửa.
 
-1. Tạo Supabase và chạy `supabase/schema.sql`.
-2. Sửa tài khoản ngân hàng mẫu trong cuối file SQL.
-3. Tạo Telegram bot bằng `@BotFather`.
-4. Upload source lên GitHub và import vào Vercel.
-5. Chọn Node.js `24.x`.
-6. Thêm biến môi trường theo `.env.example`.
-7. Redeploy, mở `/setup`, nhập `ADMIN_SETUP_KEY`, bấm kết nối Telegram.
-8. Nhắn `/id`, thêm ID vào `ALLOWED_TELEGRAM_USER_IDS`, rồi redeploy.
+## Cài đặt mới
 
-Xem hướng dẫn chi tiết trong thư mục `docs/`.
+### 1. Supabase
 
-## Kiểm tra cấu trúc
+Tạo project Supabase → SQL Editor → mở `supabase/schema.sql`.
 
-```bash
-npm run validate
+Sửa dòng tài khoản ngân hàng mẫu ở cuối phần v1.0:
+
+```sql
+'TPBank', 'TPB', '0123456789', 'NGUYEN VAN A'
 ```
 
-## Lưu ý
+thành thông tin thật, rồi chạy toàn bộ SQL.
 
-- `SUPABASE_SERVICE_ROLE_KEY` và token Telegram tuyệt đối không commit lên GitHub.
-- QR là URL ảnh VietQR, không được lưu thành file trong database.
-- Build đầy đủ cần chạy `npm install` trước.
+### 2. Telegram
+
+Tạo bot với `@BotFather` bằng `/newbot`, lưu Bot Token.
+
+### 3. GitHub và Vercel
+
+Upload các file trong thư mục dự án lên root repository, để `package.json` nằm ngang hàng với `app`, `lib`, `supabase`.
+
+Import repository vào Vercel:
+
+- Framework: Next.js
+- Node.js: 24.x
+- Build Command: `npm run build`
+- Output Directory: để trống
+
+### 4. Environment Variables
+
+```env
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=ads_wallet_secret_2026
+ALLOWED_TELEGRAM_USER_IDS=
+ADMIN_SETUP_KEY=
+APP_URL=https://ten-du-an.vercel.app
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=
+DEFAULT_FEE_PERCENT=12
+TIMEZONE=Asia/Ho_Chi_Minh
+```
+
+Redeploy sau khi thêm biến.
+
+### 5. Kết nối webhook
+
+Mở:
+
+```text
+https://ten-du-an.vercel.app/setup
+```
+
+Nhập `ADMIN_SETUP_KEY` → Kết nối Telegram → Kiểm tra trạng thái.
+
+Sau đó nhắn `/id`, lấy ID và cập nhật:
+
+```env
+ALLOWED_TELEGRAM_USER_IDS=123456789
+```
+
+Redeploy lần cuối.
+
+## Nâng cấp từ v1.0
+
+1. Upload đè code v1.1 lên GitHub.
+2. Trong Supabase SQL Editor, chạy `supabase/upgrade-v1-to-v1.1.sql` đúng một lần.
+3. Redeploy Vercel không dùng cache.
+4. Không cần đăng ký lại webhook nếu domain và Bot Token không đổi.
+
+## Lưu ý chốt tháng
+
+Bot không cho khóa sổ nếu còn giao dịch đang chờ xác nhận hoặc hủy. Hãy xử lý hết các nút QR/Ads đang chờ trước khi chốt tháng.
+
+
+## Cập nhật menu nhanh
+
+- `/start` hiển thị bàn phím nút cố định.
+- Hỗ trợ nút `➕ Nạp tiền`, `➖ Chốt Ads`, báo cáo, lịch sử, ngân hàng và hoàn tác.
+- Hỗ trợ lệnh phụ `+naptien` và `-chotads`.
+- QR không tự điền nội dung chuyển khoản.
+- Caption QR đã được rút gọn.
